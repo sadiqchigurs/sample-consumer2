@@ -1,0 +1,78 @@
+name: Auto Merge Bug/Hotfix Branch
+##############################################################################################################
+# The workflow will execute the jobs to back merge changes to develop pushed to release/HotFix/BugFix branches
+##############################################################################################################
+on:
+  pull_request:
+   types: [closed]
+   branches:
+     - 'release/*'
+     - 'hotfix/*'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      should_merge: ${{ steps.set-up.outputs.should_merge }}
+    steps:
+    - name: Set up environment
+      id: set-up
+      run: |
+        # Extract branch names
+        # Testing for HotFix deployments
+        
+        BASE_BRANCH=${{ github.event.pull_request.base.ref }}
+        HEAD_BRANCH=${{ github.event.pull_request.head.ref }}
+        # Need to use the below naming convention for hotfix to release branch
+        if [[ "$BASE_BRANCH" =~ ^release/.*$ ]] && [[ "$HEAD_BRANCH" =~ ^hotfix/.*$ ]]; then
+          echo "::set-output name=should_merge::true"
+        else
+          echo "::set-output name=should_merge::false"
+        fi
+        
+  merge-to-develop:
+    needs: setup
+    if: needs.setup.outputs.should_merge == 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        ref: develop
+        token: ${{ secrets.PAT_Token }}
+      
+    - name: Set git name and email
+      run: |
+        git config user.name "CI/CD Merge Forward"
+        git config user.email "ci-cd@gmail.com"
+
+    - name: Fetch Develop and Head branches
+      run: |
+         git fetch origin develop
+         git fetch origin ${{ github.event.pull_request.head.ref }}
+
+    - name: Merge into develop
+      id: merge
+      run: |
+        current_branch="${{ github.event.pull_request.head.ref }}"
+        target_branch="develop"
+        echo "Merging ${current_branch} -> ${target_branch}"
+
+        echo "Checking out target branch: $target_branch"
+        git checkout $target_branch
+
+        echo "Merging origin/${current_branch} into $target_branch"        
+        MERGE_STATUS=$(git merge --no-ff --no-edit origin/$current_branch; echo $?)
+
+        if [ "$MERGE_STATUS" -ne 0 ]; then
+          echo "Merge Failed"
+          echo "::set-output name=merge_status::failed"
+        else
+          echo "Merge Success"
+          echo "::set-output name=merge_status::success"
+        fi
+
+    - name: Push changes
+      if: steps.merge.outputs.merge_status == 'success'
+      run: |
+        git push origin develop
