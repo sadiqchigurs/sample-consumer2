@@ -61,17 +61,6 @@ jobs:
         echo "Checking out target branch: $target_branch"
         git checkout $target_branch
 
-        # echo "Merging origin/${current_branch} into $target_branch"        
-        # MERGE_STATUS=$(git merge --no-ff --no-edit origin/$current_branch; echo $?)
-
-        # if [ "$MERGE_STATUS" -ne 0 ]; then
-        #   echo "Merge Failed"
-        #   echo "::set-output name=merge_status::failed"
-        # else
-        #   echo "Merge Success"
-        #   echo "::set-output name=merge_status::success"
-        # fi
-
          # Attempt merge and capture exit code properly
         git merge --no-ff --no-edit origin/$current_branch
         MERGE_STATUS=$?
@@ -101,8 +90,3 @@ jobs:
         git push https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ${{ inputs.pull_request_head == '' && 'develop' || 'develop' }} --force-with-lease
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    # - name: Push changes
-    #   if: steps.merge.outputs.merge_status == 'success'
-    #   run: |
-    #     git push origin develop
