@@ -9,6 +9,10 @@ on:
      - 'release/*'
      - 'hotfix/*'
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -44,7 +48,7 @@ jobs:
     - name: Set git name and email
       run: |
         git config user.name "CI/CD Merge Forward"
-        git config user.email "ci-cd@gmail.com"
+        git config user.email "ci-cd@skechers.com"
 
     - name: Fetch Develop and Head branches
       run: |
@@ -61,18 +65,32 @@ jobs:
         echo "Checking out target branch: $target_branch"
         git checkout $target_branch
 
-        echo "Merging origin/${current_branch} into $target_branch"        
-        MERGE_STATUS=$(git merge --no-ff --no-edit origin/$current_branch; echo $?)
+         # Attempt merge and capture exit code properly
+        git merge --no-ff --no-edit origin/$current_branch
+        MERGE_STATUS=$?
 
-        if [ "$MERGE_STATUS" -ne 0 ]; then
-          echo "Merge Failed"
-          echo "::set-output name=merge_status::failed"
+        if [ $MERGE_STATUS -ne 0 ]; then
+        if git diff --name-only --diff-filter=U | grep -q .; then
+            echo "merge_status=conflict" >> $GITHUB_OUTPUT
         else
-          echo "Merge Success"
-          echo "::set-output name=merge_status::success"
+            echo "merge_status=failed" >> $GITHUB_OUTPUT
+        fi
+        exit 1
+        else
+        echo "Merge successful"
+        echo "merge_status=success" >> $GITHUB_OUTPUT
         fi
 
-    - name: Push changes
+    - name: Handle merge conflicts
+      if: failure() && steps.merge.outputs.merge_status == 'conflict'
+      run: |
+        echo "Merge conflicts detected!"
+        git merge --abort
+        exit 1
+
+    - name: Push changes with token
       if: steps.merge.outputs.merge_status == 'success'
       run: |
-        git push origin develop
+        git push https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ${{ inputs.pull_request_head == '' && 'develop' || 'develop' }} --force-with-lease
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
