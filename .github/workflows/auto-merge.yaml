@@ -55,6 +55,54 @@ jobs:
          git fetch origin develop
          git fetch origin ${{ github.event.pull_request.head.ref }}
 
+    # - name: Merge into develop
+    #   id: merge
+    #   run: |
+    #     current_branch="${{ github.event.pull_request.head.ref }}"
+    #     target_branch="develop"
+    #     echo "Merging ${current_branch} -> ${target_branch}"
+
+    #     echo "Checking out target branch: $target_branch"
+    #     git checkout $target_branch
+
+    #     # Attempt merge and capture exit code properly
+    #     git merge --no-ff --no-edit --allow-unrelated-histories origin/$current_branch
+    #     MERGE_STATUS=$?
+
+    #     if [ $MERGE_STATUS -ne 0 ]; then
+    #         if git diff --name-only --diff-filter=U | grep -q .; then
+    #             echo "merge_status=conflict" >> $GITHUB_OUTPUT
+    #         else
+    #             echo "merge_status=failed" >> $GITHUB_OUTPUT
+    #         fi
+    #         exit 1
+    #     else
+    #         echo "Merge successful"
+    #         echo "merge_status=success" >> $GITHUB_OUTPUT
+    #     fi
+
+    # - name: Handle merge conflicts
+    #   if: failure() && steps.merge.outputs.merge_status == 'conflict'
+    #   run: |
+    #     echo "Merge conflicts detected!"
+    #     git merge --abort
+    #     exit 1
+
+    # - name: Refetch develop before push
+    #   if: steps.merge.outputs.merge_status == 'success'
+    #   run: |
+    #     git fetch origin develop
+    #     # Rebase on latest to avoid stale info
+    #     git rebase origin/develop
+
+    # - name: Push changes with token
+    #   if: steps.merge.outputs.merge_status == 'success'
+    #   run: |
+    #     git push https://${{ secrets.PAT_Token }}@github.com/${{ github.repository }}.git develop
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.PAT_Token }}
+
+
     - name: Merge into develop
       id: merge
       run: |
@@ -65,39 +113,60 @@ jobs:
         echo "Checking out target branch: $target_branch"
         git checkout $target_branch
 
-        # Attempt merge and capture exit code properly
-        git merge --no-ff --no-edit --allow-unrelated-histories origin/$current_branch
-        MERGE_STATUS=$?
-
-        if [ $MERGE_STATUS -ne 0 ]; then
-            if git diff --name-only --diff-filter=U | grep -q .; then
-                echo "merge_status=conflict" >> $GITHUB_OUTPUT
-            else
-                echo "merge_status=failed" >> $GITHUB_OUTPUT
-            fi
-            exit 1
+        echo "Merging origin/${current_branch} into $target_branch"
+        
+        if git merge --no-ff --no-edit origin/$current_branch; then
+          echo "merge_status=success" >> $GITHUB_OUTPUT
         else
-            echo "Merge successful"
-            echo "merge_status=success" >> $GITHUB_OUTPUT
+          echo "merge_status=failed" >> $GITHUB_OUTPUT
+          git merge --abort
+          exit 1
         fi
 
-    - name: Handle merge conflicts
-      if: failure() && steps.merge.outputs.merge_status == 'conflict'
-      run: |
-        echo "Merge conflicts detected!"
-        git merge --abort
-        exit 1
-
-    - name: Refetch develop before push
+    - name: Create Pull Request for Develop Branch
+      if: steps.merge.outputs.merge_status == 'success'
+      id: create-pr
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.PAT_Token }}
+        commit-message: "Merge ${{ github.event.pull_request.head.ref }} into develop"
+        title: "Automated Merge: ${{ github.event.pull_request.head.ref }} → develop"
+        body: |
+          ## Automated Back Merge to Develop
+          
+          This PR automatically merges hotfix changes back to the develop branch.
+          
+          **Source Branch:** `${{ github.event.pull_request.head.ref }}`
+          **Target Branch:** `develop`
+          **PR Author:** @${{ github.event.pull_request.user.login }}
+          **Related PR:** #${{ github.event.pull_request.number }}
+          
+          ---
+          *This is an automated merge. Please review and approve.*
+        branch: merge-hotfix-develop-${{ github.run_number }}
+        base: develop
+        delete-branch: true
+        labels: |
+          automated
+          hotfix
+          back-merge
+      
+    - name: Enable Auto-Merge on PR
       if: steps.merge.outputs.merge_status == 'success'
       run: |
-        git fetch origin develop
-        # Rebase on latest to avoid stale info
-        git rebase origin/develop
-
-    - name: Push changes with token
-      if: steps.merge.outputs.merge_status == 'success'
-      run: |
-        git push https://${{ secrets.PAT_Token }}@github.com/${{ github.repository }}.git develop
+        PR_NUMBER=${{ steps.create-pr.outputs.pull_request_number }}
+        
+        if [ -z "$PR_NUMBER" ]; then
+          echo "Error: PR number not found"
+          exit 1
+        fi
+        
+        echo "Enabling auto-merge for PR #${PR_NUMBER}"
+        
+        gh pr merge ${PR_NUMBER} \
+          --auto \
+          --squash
       env:
-        GITHUB_TOKEN: ${{ secrets.PAT_Token }}
+        GH_TOKEN: ${{ secrets.PAT_Token }}
+      shell: bash
+      continue-on-error: true
