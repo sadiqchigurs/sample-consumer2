@@ -265,7 +265,9 @@ jobs:
         target_branch="develop"
         echo "Merging ${current_branch} -> ${target_branch}"
         git checkout $target_branch
-        if git merge --no-ff --no-edit origin/$current_branch; then
+        # if git merge --no-ff --no-edit origin/$current_branch; then
+
+        if git merge --no-ff --no-edit --allow-unrelated-histories origin/$current_branch; then
           echo "merge_status=success" >> $GITHUB_OUTPUT
         else
           echo "merge_status=failed" >> $GITHUB_OUTPUT
