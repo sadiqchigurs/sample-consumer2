@@ -263,9 +263,9 @@ jobs:
       run: |
         current_branch="${{ github.event.pull_request.head.ref }}"
         target_branch="develop"
+        
         echo "Merging ${current_branch} -> ${target_branch}"
         git checkout $target_branch
-        # if git merge --no-ff --no-edit origin/$current_branch; then
 
         if git merge --no-ff --no-edit --allow-unrelated-histories origin/$current_branch; then
           echo "merge_status=success" >> $GITHUB_OUTPUT
