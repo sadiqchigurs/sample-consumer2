@@ -214,8 +214,8 @@ jobs:
     - name: Set up environment
       id: set-up
       run: |
-        BASE_BRANCH="${{ inputs.pull_request_base }}"
-        HEAD_BRANCH="${{ inputs.pull_request_head }}"
+        BASE_BRANCH="${{ github.event.pull_request.base.ref }}"
+        HEAD_BRANCH="${{ github.event.pull_request.head.ref }}"
         if [[ "$BASE_BRANCH" =~ ^release/.*$ ]] && [[ "$HEAD_BRANCH" =~ ^hotfix/.*$ ]]; then
           echo "should_merge=true" >> $GITHUB_OUTPUT
         else
@@ -251,13 +251,13 @@ jobs:
     - name: Fetch Develop and Head branches
       run: |
         git fetch origin develop
-        git fetch origin ${{ inputs.pull_request_head }}
+        git fetch origin ${{ github.event.pull_request.head.ref }}
 
     - name: Merge into develop
       id: merge
       continue-on-error: true
       run: |
-        current_branch="${{ inputs.pull_request_head }}"
+        current_branch="${{ github.event.pull_request.head.ref }}"
         target_branch="develop"
         echo "Merging ${current_branch} -> ${target_branch}"
         git checkout $target_branch
