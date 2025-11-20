@@ -28,7 +28,7 @@ jobs:
           VERSION="${{ github.event.client_payload.version }}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-          BRANCH="${{ github.event.client_payload.branch }}"
+          BRANCH_NAME="${{ github.event.client_payload.branch }}"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           echo "Triggered dependency update for version: $VERSION and branch: $BRANCH_NAME"
 
