@@ -27,18 +27,21 @@ jobs:
         run: |
           VERSION="${{ github.event.client_payload.version }}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Triggered dependency update for version: $VERSION"
+
+          BRANCH="${{ github.event.client_payload.branch }}"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "Triggered dependency update for version: $VERSION and branch: $BRANCH_NAME"
 
       - name: Set up Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create new branch
-        run: |
-          BRANCH_NAME="update-math-utils-$VERSION"
-          git checkout -b $BRANCH_NAME
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+      # - name: Create new branch
+      #   run: |
+      #     BRANCH_NAME=$BRANCH 
+      #     git checkout -b $BRANCH_NAME
+      #     echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Update build.gradle
         run: |
